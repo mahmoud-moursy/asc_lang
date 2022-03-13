@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "shrimp_atc"
+name = "atc_console"
 version = "0.1.0"

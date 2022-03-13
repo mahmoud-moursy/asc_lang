@@ -9,8 +9,8 @@ Syntax:
 / This includes two bytes for the header information /
 bytes +02 +00;
 
-/ let: declares a variable that does not 
-  get replaced if it already exists /
+/ let: creates a variable only if nothing already
+  exists at that address /
 let $00 0;
 / var: creates a variable and replaces 
   prexisting variable values        /

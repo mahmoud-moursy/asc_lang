@@ -1,4 +1,4 @@
-## ASC; ASM for the [ATC fantasy console](https://github.com/atc_console)
+## ASC; ASM for the [ATC fantasy console](https://github.com/T-O-R-U-S/atc_console)
 
 Syntax:
 ```

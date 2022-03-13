@@ -1,17 +1,28 @@
-## ASC; ASM for the ATC fantasy console
+## ASC; ASM for the [ATC fantasy console](https://github.com/atc_console)
 
 Syntax:
 ```
-/ Comments are enclosed in forward slashes /
+/ Create comments by enclosing anything in two forward slashes. /
 
-/ Syntax of invocations below: /
-pix 3 3 0;
-/ All lines must end with ;. /
+/ This program paints a line diagonally across the screen /
 
-/ Access variable addresses (Upto Addr 255) with a $ /
-w $3 3;
+/ This includes two bytes for the header information /
+bytes +02 +00;
 
-/ w writes value to a variable register. Each register stores exactly 64 bits of info. /
+/ let: declares a variable that does not 
+  get replaced if it already exists /
+let $00 0;
+/ var: creates a variable and replaces 
+  prexisting variable values        /
+var $01 1;
 
-pix $3 $3 @ffffff;
+/ $00 and $01 are addresses; Add $00's value (0, initially) to 
+  $01's value (1), and save the output to $00 /
+add $00 $01 $00;
+
+/ +ab corresponds to a byte that isn't an address.
+  At the bytecode level, there is no difference between
+  variable addresses and bits, but this decision creates a
+  clear distinction between constant inputs and variable inputs. /
+pix $00 $00 +ab;
 ```

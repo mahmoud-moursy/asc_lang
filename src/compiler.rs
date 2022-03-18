@@ -486,8 +486,11 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
         }
     }
 
-    // HACK: To maintain compatibility within if statements,
-    // the current compiled out is passed to them
+    // HACK: To stop code from breaking inside of
+    // if statements, the compiled out is passed to them
+    // for whatever use case it may be needed. This has
+    // the side-effect of also duplicating the compiled
+    // output once it is done, which is undesirable.
     for _ in 0..out.len() {
         compiled_out.remove(0);
     }

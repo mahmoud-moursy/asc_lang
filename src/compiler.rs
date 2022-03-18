@@ -4,13 +4,15 @@ use crate::tokens::Token;
 
 
 
-pub fn compile(code: Vec<Token>) -> Vec<u8> {
-    let mut labels: HashMap<String, usize> = HashMap::new();
-    let mut compiled_out: Vec<u8> = vec![];
+pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>) -> Vec<u8> {
+    let mut routines: HashMap<String, Vec<u8>> = HashMap::new();
+
+    let mut compiled_out: Vec<u8> = Vec::from(out);
 
     let mut code = code.into_iter();
 
     while let Some(token) = code.next() {
+
         match token {
             Token::Ident(inst) => {
                 match inst.as_str() {
@@ -44,13 +46,15 @@ pub fn compile(code: Vec<Token>) -> Vec<u8> {
                     }
                     "pix" => {
                         let Some(Token::Var(x)) = code.next() else {
-                            panic!("Unexpected token in cpix")
+                            panic!("Unexpected token in pix")
                         };
                         let Some(Token::Var(y)) = code.next() else {
-                            panic!("Unexpected token in cpix")
+                            panic!("Unexpected token in pix")
                         };
+
+                        println!("{y}");
                         let Some(Token::Byte(colour_code)) = code.next() else {
-                            panic!("Unexpected token in cpix")
+                            panic!("Unexpected token in pix")
                         };
 
                         compiled_out.extend(
@@ -364,11 +368,112 @@ pub fn compile(code: Vec<Token>) -> Vec<u8> {
                         compiled_out.push(0xe3);
                         compiled_out.extend(jmp_byte.to_le_bytes());
                     }
+                    "gt" => {
+                        let Some(Token::Var(lhs)) = code.next() else {
+                            panic!("Unexpected token in gt call")
+                        };
+
+                        let Some(Token::Var(rhs)) = code.next() else {
+                            panic!("Unexpected token in gt call")
+                        };
+
+                        let Some(Token::Var(addr)) = code.next() else {
+                            panic!("Unexpected token in gt call")
+                        };
+
+                        compiled_out.extend([
+                            0xb1,
+                            lhs,
+                            rhs,
+                            addr
+                        ]);
+                    }
+                    "lt" => {
+                        let Some(Token::Var(lhs)) = code.next() else {
+                            panic!("Unexpected token in lt call")
+                        };
+
+                        let Some(Token::Var(rhs)) = code.next() else {
+                            panic!("Unexpected token in lt call")
+                        };
+
+                        let Some(Token::Var(addr)) = code.next() else {
+                            panic!("Unexpected token in lt call")
+                        };
+
+                        compiled_out.extend([
+                            0xb2,
+                            lhs,
+                            rhs,
+                            addr
+                        ]);
+                    }
+                    "cin" => {
+                        let Some(Token::Byte(keycode)) = code.next() else {
+                            panic!("Unexpected token in cin call")
+                        };
+
+                        let Some(Token::Var(addr)) = code.next() else {
+                            panic!("Unexpected token in cin call")
+                        };
+
+                        compiled_out.extend([
+                            0xd0,
+                            keycode,
+                            addr
+                        ])
+                    }
+                    "routine" => {
+                        let Some(Token::Ident(routine)) = code.next() else {
+                            panic!("Unexpected token in routine call")
+                        };
+
+                        let Some(Token::Block(block)) = code.next() else {
+                            panic!("Unexpected token in routine call")
+                        };
+
+                        let block = compile(block, &compiled_out, labels);
+
+                        routines.insert(routine, block);
+                    }
+                    "call" => {
+                        let Some(Token::Ident(routine)) = code.next() else {
+                            panic!("Unexpected token in routine invocation")
+                        };
+
+                        let block = routines.get(&routine).unwrap();
+
+                        compiled_out.extend(block);
+                    }
+                    "if" => {
+                        let Some(Token::Var(addr)) = code.next() else {
+                            panic!("Unexpected token in if statement condition")
+                        };
+
+                        let Some(Token::Block(block)) = code.next() else {
+                            panic!("Unexpected token in if statement (expected block)")
+                        };
+
+                        let block = compile(block, &compiled_out, labels);
+
+                        compiled_out.extend([0xe2, addr]);
+                        compiled_out.extend([0; 8]);
+
+                        let end: u64 = compiled_out.len() as u64 + block.len() as u64 - 1;
+                        for _ in 0..8 {
+                            compiled_out.pop();
+                        }
+                        compiled_out.extend(end.to_le_bytes());
+                        compiled_out.extend(block);
+                    }
                     any => panic!("Unknown instruction: {any}")
                 }
             },
             Token::Label(name) => {
-                labels.insert(name, compiled_out.len());
+                let len = compiled_out.len() - 1;
+
+                println!("OUT:=> {:0>2x?} is [{}]", compiled_out[len], len);
+                labels.insert(name, len);
             },
             Token::Str(_) => todo!(),
             Token::Byte(_) => todo!(),
@@ -379,6 +484,12 @@ pub fn compile(code: Vec<Token>) -> Vec<u8> {
             Token::Block(_) => todo!(),
             Token::EndL => {},
         }
+    }
+
+    // HACK: To maintain compatibility within if statements,
+    // the current compiled out is passed to them
+    for _ in 0..out.len() {
+        compiled_out.remove(0);
     }
 
     compiled_out

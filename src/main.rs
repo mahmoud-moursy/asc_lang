@@ -5,6 +5,7 @@ pub mod tokenizer;
 pub mod tokens;
 pub mod compiler;
 
+use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::fs::write;
 
@@ -19,5 +20,7 @@ fn main() {
 
     println!("{tokens:?}");
 
-    write("./out.atc", compile(tokens)).unwrap();
+    let mut labels = HashMap::new();
+
+    write("./out.atc", compile(tokens, &[], &mut labels)).unwrap();
 }

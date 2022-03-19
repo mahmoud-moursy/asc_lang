@@ -22,5 +22,7 @@ fn main() {
 
     let mut labels = HashMap::new();
 
-    write("./out.atc", compile(tokens, &[], &mut labels)).unwrap();
+    let mut routines = HashMap::new();
+
+    write("./out.atc", compile(tokens, &[], &mut labels, &mut routines)).unwrap();
 }

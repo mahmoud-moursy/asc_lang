@@ -161,13 +161,13 @@ pub fn tokenize(file: String) -> Vec<Token> {
 
                 let mut arr_out = [0u8; 8];
 
-                let _ = arr.iter().enumerate().inspect(|(i, v)| {
-                    let Token::Byte(v) = v else {
-                        panic!("You can only have bytes in arrays! Error at character {byte}")
+                arr.iter().enumerate().inspect(|(i, v)| {
+                    let (Token::Byte(v) | Token::Var(v)) = v else {
+                        panic!("You can only have bytes or variable pointers in arrays! Error at character {byte}")
                     };
 
                     arr_out[*i] = *v;
-                });
+                }).for_each(drop);
 
                 out.push(Token::Array(arr_out))
             }

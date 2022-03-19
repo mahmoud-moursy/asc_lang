@@ -4,9 +4,7 @@ use crate::tokens::Token;
 
 
 
-pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>) -> Vec<u8> {
-    let mut routines: HashMap<String, Vec<u8>> = HashMap::new();
-
+pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>, routines: &mut HashMap<String, Vec<Token>>) -> Vec<u8> {
     let mut compiled_out: Vec<u8> = Vec::from(out);
 
     let mut code = code.into_iter();
@@ -51,8 +49,6 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                         let Some(Token::Var(y)) = code.next() else {
                             panic!("Unexpected token in pix")
                         };
-
-                        println!("{y}");
                         let Some(Token::Byte(colour_code)) = code.next() else {
                             panic!("Unexpected token in pix")
                         };
@@ -408,7 +404,7 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                             addr
                         ]);
                     }
-                    "cin" => {
+                    "key" => {
                         let Some(Token::Byte(keycode)) = code.next() else {
                             panic!("Unexpected token in cin call")
                         };
@@ -432,8 +428,6 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                             panic!("Unexpected token in routine call")
                         };
 
-                        let block = compile(block, &compiled_out, labels);
-
                         routines.insert(routine, block);
                     }
                     "call" => {
@@ -442,6 +436,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                         };
 
                         let block = routines.get(&routine).unwrap();
+
+                        let block = compile(block.clone(), &compiled_out, labels, routines);
 
                         compiled_out.extend(block);
                     }
@@ -454,25 +450,70 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                             panic!("Unexpected token in if statement (expected block)")
                         };
 
-                        let block = compile(block, &compiled_out, labels);
+                        let block = compile(block, &compiled_out, labels, routines);
 
                         compiled_out.extend([0xe2, addr]);
                         compiled_out.extend([0; 8]);
 
-                        let end: u64 = compiled_out.len() as u64 + block.len() as u64 - 1;
+                        println!(
+                            "{}, {}, {}",
+                            compiled_out.len(),
+                            block.len(),
+                            compiled_out.len() as u64 + block.len() as u64
+                        );
+
+                        let end: u64 = compiled_out.len() as u64 + block.len() as u64;
                         for _ in 0..8 {
                             compiled_out.pop();
                         }
                         compiled_out.extend(end.to_le_bytes());
                         compiled_out.extend(block);
                     }
+                    "rep" => {
+                        let Some(Token::Num(i)) = code.next() else {
+                            panic!("Only constant ints can be in rep statements!")
+                        };
+
+                        let Some(Token::Block(block)) = code.next() else {
+                            panic!("Unexpected token in rep statement! (Expected block)");
+                        };
+
+                        for _ in 0..i {
+                            compiled_out.extend(compile(block.clone(), &compiled_out, labels, routines));
+                        }
+                    }
+                    "spr" => {
+                        let Some(Token::Array(arr)) = code.next() else {
+                            panic!("Unexpected token in sprite draw call (expected pointer array)")
+                        };
+
+                        let Some(Token::Var(x)) = code.next() else {
+                            panic!("Unexpected token in sprite draw call (unexpected token passed in as x)")
+                        };
+
+                        let Some(Token::Var(y)) = code.next() else {
+                            panic!("Unexpected token in sprite draw call (unexpected token passed in as y)")
+                        };
+
+                        compiled_out.push(0x03);
+                        compiled_out.extend(arr);
+                        compiled_out.extend([x, y]);
+                    }
+                    "flsh" => {
+                        compiled_out.push(0xfb)
+                    }
+                    "cls" => {
+                        let Some(Token::Byte(cls)) = code.next() else {
+                            panic!("Unexpected token in cls statement!")
+                        };
+
+                        compiled_out.extend([0xfc, cls])
+                    }
                     any => panic!("Unknown instruction: {any}")
                 }
             },
             Token::Label(name) => {
-                let len = compiled_out.len() - 1;
-
-                println!("OUT:=> {:0>2x?} is [{}]", compiled_out[len], len);
+                let len = compiled_out.len() - 2;
                 labels.insert(name, len);
             },
             Token::Str(_) => todo!(),
@@ -491,6 +532,9 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
     // for whatever use case it may be needed. This has
     // the side-effect of also duplicating the compiled
     // output once it is done, which is undesirable.
+
+    // UPDATE: I think OOP might fix this, however, I am
+    // much too lazy to implement it.
     for _ in 0..out.len() {
         compiled_out.remove(0);
     }

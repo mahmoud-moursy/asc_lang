@@ -24,5 +24,11 @@ fn main() {
 
     let mut routines = HashMap::new();
 
-    write("./out.atc", compile(tokens, &[], &mut labels, &mut routines)).unwrap();
+    let mut output = Vec::new();
+
+    let mut header_size: usize = 0;
+
+    compile(tokens, &mut output, &mut labels, &mut routines, &mut header_size);
+
+    write("./out.atc", output).unwrap();
 }

@@ -1,0 +1,7 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory '/home/donut/Documents/shrimp_atc'
+cargo r -r
+./bytecode_byter ./out.atc
+./atc_console ./out.atc > ./ftc_cons.atc_log
+make: Leaving directory '/home/donut/Documents/shrimp_atc'
+ 

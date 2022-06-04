@@ -4,9 +4,7 @@ use crate::tokens::Token;
 
 
 
-pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>, routines: &mut HashMap<String, Vec<Token>>) -> Vec<u8> {
-    let mut compiled_out: Vec<u8> = Vec::from(out);
-
+pub fn compile(code: Vec<Token>, compiled_out: &mut Vec<u8>, labels: &mut HashMap<String, usize>, routines: &mut HashMap<String, Vec<Token>>, header_size: &mut usize) {
     let mut code = code.into_iter();
 
     while let Some(token) = code.next() {
@@ -14,9 +12,15 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
         match token {
             Token::Ident(inst) => {
                 match inst.as_str() {
-                    "bytes" => {
+                    "keeploop" => { compiled_out.push(0x02); *header_size += 1; },
+                    "keepopen" => { compiled_out.push(0x04); *header_size += 1; },
+                    "endhead" => compiled_out.push(0x00),
+                    "headerbytes" => {
                         while let Some(Token::Byte(byte)) = code.next() {
-                            compiled_out.push(byte)
+                            compiled_out.push(byte);
+                            if byte != 0 {
+                                *header_size += 1;
+                            }
                         }
                     }
                     "noop" => {
@@ -140,7 +144,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Float(lhs), Token::Float(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs / rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -163,7 +168,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Float(lhs), Token::Float(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs - rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -186,7 +192,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Float(lhs), Token::Float(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs + rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -209,7 +216,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Float(lhs), Token::Float(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs * rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -232,7 +240,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Num(lhs), Token::Num(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs / rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -255,7 +264,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Num(lhs), Token::Num(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs - rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -278,7 +288,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Num(lhs), Token::Num(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs + rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -301,7 +312,8 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         match (lhs, rhs, out) {
                             (Token::Num(lhs), Token::Num(rhs), Token::Var(out)) => {
-                                compiled_out.push(0xa1); 
+                                compiled_out.push(0xa1);
+                                compiled_out.push(0xe0);
                                 compiled_out.extend((lhs * rhs).to_le_bytes());
                                 compiled_out.push(out);
                             }
@@ -437,9 +449,7 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
 
                         let block = routines.get(&routine).unwrap();
 
-                        let block = compile(block.clone(), &compiled_out, labels, routines);
-
-                        compiled_out.extend(block);
+                        compile(block.clone(), compiled_out, labels, routines, header_size);
                     }
                     "if" => {
                         let Some(Token::Var(addr)) = code.next() else {
@@ -450,24 +460,20 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                             panic!("Unexpected token in if statement (expected block)")
                         };
 
-                        let block = compile(block, &compiled_out, labels, routines);
+                        compiled_out.push(0xe2);
+                        compiled_out.push(addr);
 
-                        compiled_out.extend([0xe2, addr]);
+                        let byte_marker = compiled_out.len();
+
                         compiled_out.extend([0; 8]);
 
-                        println!(
-                            "{}, {}, {}",
-                            compiled_out.len(),
-                            block.len(),
-                            compiled_out.len() as u64 + block.len() as u64
-                        );
+                        compile(block, compiled_out, labels, routines, header_size);
 
-                        let end: u64 = compiled_out.len() as u64 + block.len() as u64;
-                        for _ in 0..8 {
-                            compiled_out.pop();
+                        let pos = compiled_out.len().to_le_bytes();
+
+                        for i in byte_marker..byte_marker + 8 {
+                            compiled_out[i] = pos[i - byte_marker];
                         }
-                        compiled_out.extend(end.to_le_bytes());
-                        compiled_out.extend(block);
                     }
                     "rep" => {
                         let Some(Token::Num(i)) = code.next() else {
@@ -479,7 +485,7 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                         };
 
                         for _ in 0..i {
-                            compiled_out.extend(compile(block.clone(), &compiled_out, labels, routines));
+                            compile(block.clone(), compiled_out, labels, routines, header_size);
                         }
                     }
                     "spr" => {
@@ -513,31 +519,11 @@ pub fn compile(code: Vec<Token>, out: &[u8], labels: &mut HashMap<String, usize>
                 }
             },
             Token::Label(name) => {
-                let len = compiled_out.len() - 2;
+                let len = compiled_out.len() - 1 - *header_size;
                 labels.insert(name, len);
             },
-            Token::Str(_) => todo!(),
-            Token::Byte(_) => todo!(),
-            Token::Var(_) => todo!(),
-            Token::Num(_) => todo!(),
-            Token::Float(_) => todo!(),
-            Token::Array(_) => todo!(),
-            Token::Block(_) => todo!(),
             Token::EndL => {},
+            any => panic!("Unexpected token {any:?}"),
         }
     }
-
-    // HACK: To stop code from breaking inside of
-    // if statements, the compiled out is passed to them
-    // for whatever use case it may be needed. This has
-    // the side-effect of also duplicating the compiled
-    // output once it is done, which is undesirable.
-
-    // UPDATE: I think OOP might fix this, however, I am
-    // much too lazy to implement it.
-    for _ in 0..out.len() {
-        compiled_out.remove(0);
-    }
-
-    compiled_out
 }
